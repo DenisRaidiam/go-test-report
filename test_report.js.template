@@ -1,0 +1,12 @@
+    {{.JsCode}}
+
+    /**
+     * @type {TestResults}
+     */
+    const data = {{.TestResultsJson}}
+
+    const report = window.GoTestReport({
+                                         data: data,
+                                         testResultsElem: document.getElementById('testResults'),
+                                         testGroupListElem: document.getElementById('testGroupList')
+                                       });

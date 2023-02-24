@@ -255,21 +255,6 @@
     </div>
     <div class="cardContainer testGroupList" id="testGroupList"></div>
 </div>
-<script type="application/javascript">
-    {{.JsCode}}
-
-    /**
-     * @type {TestResults}
-     */
-    const data = {{.TestResults}}
-
-    const report = window.GoTestReport({
-                                         data: data,
-                                         testResultsElem: document.getElementById('testResults'),
-                                         testGroupListElem: document.getElementById('testGroupList')
-                                       });
-
-
-</script>
+<script type="application/javascript" src="test.js" {{.Integrity}}></script>
 </body>
 </html>

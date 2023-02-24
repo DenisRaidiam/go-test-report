@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -12,12 +14,15 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
-	"html/template"
+	htmlTemplate "html/template"
+	"io"
+	"log"
 	"os"
 	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
+	textTemplate "text/template"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -49,16 +54,21 @@ type (
 		TestResultGroupIndicatorWidth  string
 		TestResultGroupIndicatorHeight string
 		TestResults                    []*testGroupData
+		Integrity                      htmlTemplate.HTMLAttr
 		NumOfTestPassed                int
 		NumOfTestFailed                int
 		NumOfTestSkipped               int
 		NumOfTests                     int
 		TestDuration                   time.Duration
 		ReportTitle                    string
-		JsCode                         template.JS
 		numOfTestsPerGroup             int
 		OutputFilename                 string
 		TestExecutionDate              string
+	}
+
+	jsTemplateData struct {
+		TestResultsJson string
+		JsCode          string
 	}
 
 	testGroupData struct {
@@ -131,16 +141,8 @@ func initRootCommand() (*cobra.Command, *templateData, *cmdFlags) {
 			}
 			stdin := os.Stdin
 			stdinScanner := bufio.NewScanner(stdin)
-			testReportHTMLTemplateFile, _ := os.Create(tmplData.OutputFilename)
-			reportFileWriter := bufio.NewWriter(testReportHTMLTemplateFile)
 			defer func() {
 				_ = stdin.Close()
-				if err := reportFileWriter.Flush(); err != nil {
-					e = err
-				}
-				if err := testReportHTMLTemplateFile.Close(); err != nil {
-					e = err
-				}
 			}()
 			startTestTime := time.Now()
 			allPackageNames, allTests, err := readTestDataFromStdIn(stdinScanner, flags, cmd)
@@ -158,12 +160,15 @@ func initRootCommand() (*cobra.Command, *templateData, *cmdFlags) {
 			if err != nil {
 				return err
 			}
-			err = generateReport(tmplData, allTests, testFileDetailByPackage, elapsedTestTime, reportFileWriter)
-			elapsedTime := time.Since(startTime)
-			elapsedTimeMsg := []byte(fmt.Sprintf("[go-test-report] finished in %s\n", elapsedTime))
-			if _, err := cmd.OutOrStdout().Write(elapsedTimeMsg); err != nil {
+
+			if err = generateReport(tmplData, allTests, testFileDetailByPackage, elapsedTestTime); err != nil {
 				return err
 			}
+
+			if _, err := cmd.OutOrStdout().Write([]byte(fmt.Sprintf("[go-test-report] finished in %s\n", time.Since(startTime)))); err != nil {
+				return err
+			}
+
 			return nil
 		},
 	}
@@ -389,9 +394,9 @@ func (t byName) Less(i, j int) bool {
 	return t[i].name < t[j].name
 }
 
-func generateReport(tmplData *templateData, allTests map[string]*testStatus, testFileDetailByPackage testFileDetailsByPackage, elapsedTestTime time.Duration, reportFileWriter *bufio.Writer) error {
+func generateReport(tmplData *templateData, allTests map[string]*testStatus, testFileDetailByPackage testFileDetailsByPackage, elapsedTestTime time.Duration) error {
 	// read the html template from the generated embedded asset go file
-	tpl := template.New("test_report.html.template")
+	tpl := htmlTemplate.New("test_report.html.template")
 	testReportHTMLTemplateStr, err := hex.DecodeString(testReportHTMLTemplate)
 	if err != nil {
 		return err
@@ -400,29 +405,47 @@ func generateReport(tmplData *templateData, allTests map[string]*testStatus, tes
 	if err != nil {
 		return err
 	}
+
+	// read the js template from the generated embedded asset go file
+
+	jsTpl := textTemplate.New("test_report.js.template")
+	testReportJsTemplateStr, err := hex.DecodeString(testReportJsTemplate)
+	if err != nil {
+		return err
+	}
+
+	jsTpl, err = jsTpl.Parse(string(testReportJsTemplateStr))
+	log.Println(jsTpl)
+	if err != nil {
+		return err
+	}
+
 	// read Javascript code from the generated embedded asset go file
 	testReportJsCodeStr, err := hex.DecodeString(testReportJsCode)
 	if err != nil {
 		return err
 	}
 
+	jsTemplateData := &jsTemplateData{}
+	jsTemplateData.JsCode = string(testReportJsCodeStr)
+
 	tmplData.NumOfTestPassed = 0
 	tmplData.NumOfTestFailed = 0
 	tmplData.NumOfTestSkipped = 0
-	tmplData.JsCode = template.JS(testReportJsCodeStr)
 	tgCounter := 0
 	tgID := 0
 
 	// sort the allTests map by test name (this will produce a consistent order when iterating through the map)
 	var tests []testRef
+	var testResults []*testGroupData
 	for test, status := range allTests {
 		tests = append(tests, testRef{test, status.TestName})
 	}
 	sort.Sort(byName(tests))
 	for _, test := range tests {
 		status := allTests[test.key]
-		if len(tmplData.TestResults) == tgID {
-			tmplData.TestResults = append(tmplData.TestResults, &testGroupData{})
+		if len(testResults) == tgID {
+			testResults = append(testResults, &testGroupData{})
 		}
 		// add file info(name and position; line and col) associated with the test function
 		testFileInfo := testFileDetailByPackage[status.Package][status.TestName]
@@ -430,13 +453,13 @@ func generateReport(tmplData *templateData, allTests map[string]*testStatus, tes
 			status.TestFileName = testFileInfo.FileName
 			status.TestFunctionDetail = testFileInfo.TestFunctionFilePos
 		}
-		tmplData.TestResults[tgID].TestResults = append(tmplData.TestResults[tgID].TestResults, status)
+		testResults[tgID].TestResults = append(testResults[tgID].TestResults, status)
 		if !status.Passed {
 			if !status.Skipped {
-				tmplData.TestResults[tgID].FailureIndicator = "failed"
+				testResults[tgID].FailureIndicator = "failed"
 				tmplData.NumOfTestFailed++
 			} else {
-				tmplData.TestResults[tgID].SkippedIndicator = "skipped"
+				testResults[tgID].SkippedIndicator = "skipped"
 				tmplData.NumOfTestSkipped++
 			}
 		} else {
@@ -453,10 +476,93 @@ func generateReport(tmplData *templateData, allTests map[string]*testStatus, tes
 	td := time.Now()
 	tmplData.TestExecutionDate = fmt.Sprintf("%s %d, %d %02d:%02d:%02d",
 		td.Month(), td.Day(), td.Year(), td.Hour(), td.Minute(), td.Second())
-	if err := tpl.Execute(reportFileWriter, tmplData); err != nil {
+
+	tmplData.TestResults = testResults
+	testResultsJson, err := json.Marshal(testResults)
+
+	if err != nil {
 		return err
 	}
+
+	jsTemplateData.TestResultsJson = string(testResultsJson)
+
+	if err := writeJsFile(jsTemplateData, jsTpl); err != nil {
+		return err
+	}
+
+	hash, err := calculateJsFileHash()
+
+	if err != nil {
+		return err
+	}
+
+	tmplData.Integrity = htmlTemplate.HTMLAttr(fmt.Sprintf(`integrity="sha256-%s"`, hash))
+
+	if err := writeHtmlFile(tmplData, tpl); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func calculateJsFileHash() (hash string, e error) {
+	f, err := os.Open("index.js")
+
+	defer func() {
+		if err := f.Close(); err != nil {
+			e = err
+		}
+	}()
+
+	if err != nil {
+		e = err
+	}
+
+	read, _ := io.ReadAll(f)
+	fmt.Println(string(read))
+
+	sum256 := sha256.Sum256(read)
+	hash = base64.StdEncoding.EncodeToString(sum256[:])
+	fmt.Printf("hash - %s", hash)
+	return hash, e
+}
+
+func writeHtmlFile(tmplData *templateData, template *htmlTemplate.Template) (e error) {
+	testReportHTMLTemplateFile, _ := os.Create(tmplData.OutputFilename)
+	reportFileWriter := bufio.NewWriter(testReportHTMLTemplateFile)
+	defer func() {
+		if err := reportFileWriter.Flush(); err != nil {
+			e = err
+		}
+		if err := testReportHTMLTemplateFile.Close(); err != nil {
+			e = err
+		}
+	}()
+
+	if err := template.Execute(reportFileWriter, tmplData); err != nil {
+		e = err
+	}
+
+	return e
+}
+
+func writeJsFile(jsTemplateData *jsTemplateData, jsTemplate *textTemplate.Template) (e error) {
+	jsFile, _ := os.Create("index.js")
+	jsWriter := bufio.NewWriter(jsFile)
+	defer func() {
+		if err := jsWriter.Flush(); err != nil {
+			e = err
+		}
+
+		if err := jsFile.Close(); err != nil {
+			e = err
+		}
+	}()
+
+	if err := jsTemplate.Execute(jsWriter, jsTemplateData); err != nil {
+		e = err
+	}
+	return e
 }
 
 func parseSizeFlag(tmplData *templateData, flags *cmdFlags) error {
