@@ -255,6 +255,6 @@
     </div>
     <div class="cardContainer testGroupList" id="testGroupList"></div>
 </div>
-<script type="application/javascript" src="test.js" {{.Integrity}}></script>
+<script type="application/javascript" src="index.js" {{.Integrity}}></script>
 </body>
 </html>

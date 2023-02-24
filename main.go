@@ -16,7 +16,6 @@ import (
 	"go/types"
 	htmlTemplate "html/template"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"sort"
@@ -415,7 +414,6 @@ func generateReport(tmplData *templateData, allTests map[string]*testStatus, tes
 	}
 
 	jsTpl, err = jsTpl.Parse(string(testReportJsTemplateStr))
-	log.Println(jsTpl)
 	if err != nil {
 		return err
 	}
@@ -519,11 +517,8 @@ func calculateJsFileHash() (hash string, e error) {
 	}
 
 	read, _ := io.ReadAll(f)
-	fmt.Println(string(read))
-
 	sum256 := sha256.Sum256(read)
 	hash = base64.StdEncoding.EncodeToString(sum256[:])
-	fmt.Printf("hash - %s", hash)
 	return hash, e
 }
 
