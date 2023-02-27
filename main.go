@@ -51,7 +51,8 @@ type (
 
 	templateData struct {
 		TestResults        []*testGroupData
-		Integrity          htmlTemplate.HTMLAttr
+		JsIntegrity        htmlTemplate.HTMLAttr
+		CssIntegrity       htmlTemplate.HTMLAttr
 		NumOfTestPassed    int
 		NumOfTestFailed    int
 		NumOfTestSkipped   int
@@ -504,13 +505,21 @@ func generateReport(tmplData *templateData, allTests map[string]*testStatus, tes
 		return err
 	}
 
-	hash, err := calculateJsFileHash()
+	hash, err := calculateFileHash("index.js")
 
 	if err != nil {
 		return err
 	}
 
-	tmplData.Integrity = htmlTemplate.HTMLAttr(fmt.Sprintf(`integrity="sha256-%s"`, hash))
+	tmplData.JsIntegrity = htmlTemplate.HTMLAttr(fmt.Sprintf(`integrity="sha256-%s"`, hash))
+
+	hash, err = calculateFileHash("style.css")
+
+	if err != nil {
+		return err
+	}
+
+	tmplData.CssIntegrity = htmlTemplate.HTMLAttr(fmt.Sprintf(`integrity="sha256-%s"`, hash))
 
 	if err := writeHtmlFile(tmplData, tpl); err != nil {
 		return err
@@ -519,8 +528,8 @@ func generateReport(tmplData *templateData, allTests map[string]*testStatus, tes
 	return nil
 }
 
-func calculateJsFileHash() (hash string, e error) {
-	f, err := os.Open("index.js")
+func calculateFileHash(fileName string) (hash string, e error) {
+	f, err := os.Open(fileName)
 
 	defer func() {
 		if err := f.Close(); err != nil {
