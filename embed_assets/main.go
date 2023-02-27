@@ -10,11 +10,13 @@ import (
 var htmlTemplate []byte
 var jsCode []byte
 var jsTemplate []byte
+var cssTemplate []byte
 
 func init() {
-	htmlTemplate, _ = os.ReadFile("../test_report.html.template")
-	jsCode, _ = os.ReadFile("../test_report.js")
-	jsTemplate, _ = os.ReadFile("../test_report.js.template")
+	htmlTemplate, _ = os.ReadFile("../templates/test_report.html.template")
+	jsCode, _ = os.ReadFile("../templates/test_report.js")
+	jsTemplate, _ = os.ReadFile("../templates/test_report.js.template")
+	cssTemplate, _ = os.ReadFile("../templates/style.css.template")
 }
 
 func main() {
@@ -36,5 +38,8 @@ func main() {
 	_, _ = writer.WriteString(fmt.Sprintf("\n\nvar testReportJsCode = `%s`", string(dst)))
 	dst = make([]byte, hex.EncodedLen(len(jsTemplate)))
 	hex.Encode(dst, jsTemplate)
-	_, _ = writer.WriteString(fmt.Sprintf("\n\nvar testReportJsTemplate = `%s`\n", string(dst)))
+	_, _ = writer.WriteString(fmt.Sprintf("\n\nvar testReportJsTemplate = `%s`", string(dst)))
+	dst = make([]byte, hex.EncodedLen(len(cssTemplate)))
+	hex.Encode(dst, cssTemplate)
+	_, _ = writer.WriteString(fmt.Sprintf("\n\nvar testReportCssTemplate = `%s`\n", string(dst)))
 }

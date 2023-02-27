@@ -1,7 +1,8 @@
 node_modules/
-go-test-report
 go-test-report.exe
 test_report.html
+index.js
+style.css
 embed_assets/embed_assets
 release_builds/
 .idea/
