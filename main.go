@@ -50,19 +50,22 @@ type (
 	}
 
 	templateData struct {
+		TestResults        []*testGroupData
+		Integrity          htmlTemplate.HTMLAttr
+		NumOfTestPassed    int
+		NumOfTestFailed    int
+		NumOfTestSkipped   int
+		NumOfTests         int
+		TestDuration       time.Duration
+		ReportTitle        string
+		numOfTestsPerGroup int
+		OutputFilename     string
+		TestExecutionDate  string
+	}
+
+	cssTemplateData struct {
 		TestResultGroupIndicatorWidth  string
 		TestResultGroupIndicatorHeight string
-		TestResults                    []*testGroupData
-		Integrity                      htmlTemplate.HTMLAttr
-		NumOfTestPassed                int
-		NumOfTestFailed                int
-		NumOfTestSkipped               int
-		NumOfTests                     int
-		TestDuration                   time.Duration
-		ReportTitle                    string
-		numOfTestsPerGroup             int
-		OutputFilename                 string
-		TestExecutionDate              string
 	}
 
 	jsTemplateData struct {
@@ -115,23 +118,36 @@ type (
 )
 
 func main() {
-	rootCmd, _, _ := initRootCommand()
+	rootCmd, _, _, _ := initRootCommand()
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
-func initRootCommand() (*cobra.Command, *templateData, *cmdFlags) {
+func initRootCommand() (*cobra.Command, *templateData, *cssTemplateData, *cmdFlags) {
 	flags := &cmdFlags{}
 	tmplData := &templateData{}
+	cssTemplateData := &cssTemplateData{}
 	rootCmd := &cobra.Command{
 		Use:  "go-test-report",
 		Long: "Captures go test output via stdin and parses it into a single self-contained html file.",
 		RunE: func(cmd *cobra.Command, args []string) (e error) {
 			startTime := time.Now()
-			if err := parseSizeFlag(tmplData, flags); err != nil {
+			if err := parseSizeFlag(cssTemplateData, flags); err != nil {
 				return err
 			}
+
+			cssTemplate := textTemplate.New("style.css.template")
+			cssTemplateStr, err := hex.DecodeString(testReportCssTemplate)
+			if err != nil {
+				return err
+			}
+			cssTemplate, err = cssTemplate.Parse(string(cssTemplateStr))
+
+			if err := writeCssFile(cssTemplateData, cssTemplate); err != nil {
+				return err
+			}
+
 			tmplData.numOfTestsPerGroup = flags.groupSize
 			tmplData.ReportTitle = flags.titleFlag
 			tmplData.OutputFilename = flags.outputFlag
@@ -214,7 +230,7 @@ func initRootCommand() (*cobra.Command, *templateData, *cmdFlags) {
 		false,
 		"while processing, show the complete output from go test ")
 
-	return rootCmd, tmplData, flags
+	return rootCmd, tmplData, cssTemplateData, flags
 }
 
 func readTestDataFromStdIn(stdinScanner *bufio.Scanner, flags *cmdFlags, cmd *cobra.Command) (allPackageNames map[string]*types.Nil, allTests map[string]*testStatus, e error) {
@@ -541,6 +557,25 @@ func writeHtmlFile(tmplData *templateData, template *htmlTemplate.Template) (e e
 	return e
 }
 
+func writeCssFile(cssTemplateData *cssTemplateData, cssTemplate *textTemplate.Template) (e error) {
+	cssFile, _ := os.Create("style.css")
+	cssWriter := bufio.NewWriter(cssFile)
+	defer func() {
+		if err := cssWriter.Flush(); err != nil {
+			e = err
+		}
+
+		if err := cssFile.Close(); err != nil {
+			e = err
+		}
+	}()
+
+	if err := cssTemplate.Execute(cssWriter, cssTemplateData); err != nil {
+		e = err
+	}
+	return e
+}
+
 func writeJsFile(jsTemplateData *jsTemplateData, jsTemplate *textTemplate.Template) (e error) {
 	jsFile, _ := os.Create("index.js")
 	jsWriter := bufio.NewWriter(jsFile)
@@ -560,15 +595,15 @@ func writeJsFile(jsTemplateData *jsTemplateData, jsTemplate *textTemplate.Templa
 	return e
 }
 
-func parseSizeFlag(tmplData *templateData, flags *cmdFlags) error {
+func parseSizeFlag(cssTemplate *cssTemplateData, flags *cmdFlags) error {
 	flags.sizeFlag = strings.ToLower(flags.sizeFlag)
 	if !strings.Contains(flags.sizeFlag, "x") {
 		val, err := strconv.Atoi(flags.sizeFlag)
 		if err != nil {
 			return err
 		}
-		tmplData.TestResultGroupIndicatorWidth = fmt.Sprintf("%dpx", val)
-		tmplData.TestResultGroupIndicatorHeight = fmt.Sprintf("%dpx", val)
+		cssTemplate.TestResultGroupIndicatorWidth = fmt.Sprintf("%dpx", val)
+		cssTemplate.TestResultGroupIndicatorHeight = fmt.Sprintf("%dpx", val)
 		return nil
 	}
 	if strings.Count(flags.sizeFlag, "x") > 1 {
@@ -579,12 +614,12 @@ func parseSizeFlag(tmplData *templateData, flags *cmdFlags) error {
 	if err != nil {
 		return err
 	}
-	tmplData.TestResultGroupIndicatorWidth = fmt.Sprintf("%dpx", valW)
+	cssTemplate.TestResultGroupIndicatorWidth = fmt.Sprintf("%dpx", valW)
 	valH, err := strconv.Atoi(a[1])
 	if err != nil {
 		return err
 	}
-	tmplData.TestResultGroupIndicatorHeight = fmt.Sprintf("%dpx", valH)
+	cssTemplate.TestResultGroupIndicatorHeight = fmt.Sprintf("%dpx", valH)
 	return nil
 }
 

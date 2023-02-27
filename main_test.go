@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -17,12 +17,12 @@ import (
 func TestVersionCommand(t *testing.T) {
 	assertions := assert.New(t)
 	buffer := bytes.NewBufferString("")
-	rootCmd, _, _ := initRootCommand()
+	rootCmd, _, _, _ := initRootCommand()
 	rootCmd.SetOut(buffer)
 	rootCmd.SetArgs([]string{"version"})
 	rootCmdErr := rootCmd.Execute()
 	assertions.Nil(rootCmdErr)
-	output, readErr := ioutil.ReadAll(buffer)
+	output, readErr := io.ReadAll(buffer)
 	assertions.Nil(readErr)
 	assertions.Equal(fmt.Sprintf("go-test-report v%s\n", version), string(output))
 }
@@ -30,12 +30,12 @@ func TestVersionCommand(t *testing.T) {
 func TestTitleFlag(t *testing.T) {
 	assertions := assert.New(t)
 	buffer := bytes.NewBufferString("")
-	rootCmd, tmplData, _ := initRootCommand()
+	rootCmd, tmplData, _, _ := initRootCommand()
 	rootCmd.SetOut(buffer)
 	rootCmd.SetArgs([]string{"--title", "Sample Test Report"})
 	rootCmdErr := rootCmd.Execute()
 	assertions.Error(rootCmdErr)
-	output, readErr := ioutil.ReadAll(buffer)
+	output, readErr := io.ReadAll(buffer)
 	assertions.Nil(readErr)
 	assertions.Equal("Sample Test Report", tmplData.ReportTitle)
 	assertions.NotEmpty(output)
@@ -44,7 +44,7 @@ func TestTitleFlag(t *testing.T) {
 func TestTitleFlagIfMissingValue(t *testing.T) {
 	assertions := assert.New(t)
 	buffer := bytes.NewBufferString("")
-	rootCmd, _, _ := initRootCommand()
+	rootCmd, _, _, _ := initRootCommand()
 	rootCmd.SetOut(buffer)
 	rootCmd.SetArgs([]string{"--title"})
 	rootCmdErr := rootCmd.Execute()
@@ -55,39 +55,39 @@ func TestTitleFlagIfMissingValue(t *testing.T) {
 func TestSizeFlag(t *testing.T) {
 	assertions := assert.New(t)
 	buffer := bytes.NewBufferString("")
-	rootCmd, tmplData, flags := initRootCommand()
+	rootCmd, _, cssTemplateData, flags := initRootCommand()
 	rootCmd.SetOut(buffer)
 	rootCmd.SetArgs([]string{"--size", "24"})
 	rootCmdErr := rootCmd.Execute()
 	assertions.Error(rootCmdErr)
-	output, readErr := ioutil.ReadAll(buffer)
+	output, readErr := io.ReadAll(buffer)
 	assertions.Nil(readErr)
 	assertions.Equal("24", flags.sizeFlag)
-	assertions.Equal("24px", tmplData.TestResultGroupIndicatorWidth)
-	assertions.Equal("24px", tmplData.TestResultGroupIndicatorHeight)
+	assertions.Equal("24px", cssTemplateData.TestResultGroupIndicatorWidth)
+	assertions.Equal("24px", cssTemplateData.TestResultGroupIndicatorHeight)
 	assertions.NotEmpty(output)
 }
 
 func TestSizeFlagWithFullDimensions(t *testing.T) {
 	assertions := assert.New(t)
 	buffer := bytes.NewBufferString("")
-	rootCmd, tmplData, flags := initRootCommand()
+	rootCmd, _, cssTemplateData, flags := initRootCommand()
 	rootCmd.SetOut(buffer)
 	rootCmd.SetArgs([]string{"--size", "24x16"})
 	rootCmdErr := rootCmd.Execute()
 	assertions.Error(rootCmdErr)
-	output, readErr := ioutil.ReadAll(buffer)
+	output, readErr := io.ReadAll(buffer)
 	assertions.Nil(readErr)
 	assertions.Equal("24x16", flags.sizeFlag)
-	assertions.Equal("24px", tmplData.TestResultGroupIndicatorWidth)
-	assertions.Equal("16px", tmplData.TestResultGroupIndicatorHeight)
+	assertions.Equal("24px", cssTemplateData.TestResultGroupIndicatorWidth)
+	assertions.Equal("16px", cssTemplateData.TestResultGroupIndicatorHeight)
 	assertions.NotEmpty(output)
 }
 
 func TestSizeFlagIfMissingValue(t *testing.T) {
 	assertions := assert.New(t)
 	buffer := bytes.NewBufferString("")
-	rootCmd, _, _ := initRootCommand()
+	rootCmd, _, _, _ := initRootCommand()
 	rootCmd.SetOut(buffer)
 	rootCmd.SetArgs([]string{"--size"})
 	rootCmdErr := rootCmd.Execute()
@@ -98,12 +98,12 @@ func TestSizeFlagIfMissingValue(t *testing.T) {
 func TestGroupSizeFlag(t *testing.T) {
 	assertions := assert.New(t)
 	buffer := bytes.NewBufferString("")
-	rootCmd, tmplData, _ := initRootCommand()
+	rootCmd, tmplData, _, _ := initRootCommand()
 	rootCmd.SetOut(buffer)
 	rootCmd.SetArgs([]string{"--groupSize", "32"})
 	rootCmdErr := rootCmd.Execute()
 	assertions.Error(rootCmdErr)
-	output, readErr := ioutil.ReadAll(buffer)
+	output, readErr := io.ReadAll(buffer)
 	assertions.Nil(readErr)
 	assertions.Equal(32, tmplData.numOfTestsPerGroup)
 	assertions.NotEmpty(output)
@@ -112,7 +112,7 @@ func TestGroupSizeFlag(t *testing.T) {
 func TestGroupSizeFlagIfMissingValue(t *testing.T) {
 	assertions := assert.New(t)
 	buffer := bytes.NewBufferString("")
-	rootCmd, _, _ := initRootCommand()
+	rootCmd, _, _, _ := initRootCommand()
 	rootCmd.SetOut(buffer)
 	rootCmd.SetArgs([]string{"--groupSize"})
 	rootCmdErr := rootCmd.Execute()
@@ -123,12 +123,12 @@ func TestGroupSizeFlagIfMissingValue(t *testing.T) {
 func TestGroupOutputFlag(t *testing.T) {
 	assertions := assert.New(t)
 	buffer := bytes.NewBufferString("")
-	rootCmd, tmplData, _ := initRootCommand()
+	rootCmd, tmplData, _, _ := initRootCommand()
 	rootCmd.SetOut(buffer)
 	rootCmd.SetArgs([]string{"--output", "test_file.html"})
 	rootCmdErr := rootCmd.Execute()
 	assertions.Error(rootCmdErr)
-	output, readErr := ioutil.ReadAll(buffer)
+	output, readErr := io.ReadAll(buffer)
 	assertions.Nil(readErr)
 	assertions.Equal("test_file.html", tmplData.OutputFilename)
 	assertions.NotEmpty(output)
@@ -137,7 +137,7 @@ func TestGroupOutputFlag(t *testing.T) {
 func TestGroupOutputFlagIfMissingValue(t *testing.T) {
 	assertions := assert.New(t)
 	buffer := bytes.NewBufferString("")
-	rootCmd, _, _ := initRootCommand()
+	rootCmd, _, _, _ := initRootCommand()
 	rootCmd.SetOut(buffer)
 	rootCmd.SetArgs([]string{"--output"})
 	rootCmdErr := rootCmd.Execute()
@@ -223,7 +223,7 @@ func TestGetAllDetails(t *testing.T) {
 		"main_test.go"
 	]
 }`
-	tmpfile, err := ioutil.TempFile("", "*.json")
+	tmpfile, err := os.CreateTemp("", "*.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,11 +245,9 @@ func TestGetAllDetails(t *testing.T) {
 func TestGenerateReport(t *testing.T) {
 	assertions := assert.New(t)
 	tmplData := &templateData{
-		TestResultGroupIndicatorWidth:  "20px",
-		TestResultGroupIndicatorHeight: "16px",
-		ReportTitle:                    "test-title",
-		numOfTestsPerGroup:             2,
-		OutputFilename:                 "test-output-report.html",
+		ReportTitle:        "test-title",
+		numOfTestsPerGroup: 2,
+		OutputFilename:     "test-output-report.html",
 	}
 	allTests := map[string]*testStatus{}
 	allTests["TestFunc1"] = &testStatus{
@@ -314,8 +312,7 @@ func TestGenerateReport(t *testing.T) {
 		},
 	}
 	elapsedTestTime := 3 * time.Second
-	writer := bufio.NewWriter(&bytes.Buffer{})
-	err := generateReport(tmplData, allTests, testFileDetailsByPackage, elapsedTestTime, writer)
+	err := generateReport(tmplData, allTests, testFileDetailsByPackage, elapsedTestTime)
 	assertions.Nil(err)
 	assertions.Equal(2, tmplData.NumOfTestPassed)
 	assertions.Equal(1, tmplData.NumOfTestFailed)
@@ -368,11 +365,11 @@ func TestSameTestName(t *testing.T) {
 
 func TestParseSizeFlagIfValueIsNotInteger(t *testing.T) {
 	assertions := assert.New(t)
-	tmplData := &templateData{}
+	cssTemplateData := &cssTemplateData{}
 	flags := &cmdFlags{
 		sizeFlag: "x",
 	}
-	err := parseSizeFlag(tmplData, flags)
+	err := parseSizeFlag(cssTemplateData, flags)
 	assertions.Error(err)
 	assertions.Equal(err.Error(), `strconv.Atoi: parsing "": invalid syntax`)
 
@@ -380,33 +377,33 @@ func TestParseSizeFlagIfValueIsNotInteger(t *testing.T) {
 
 func TestParseSizeFlagIfWidthValueIsNotInteger(t *testing.T) {
 	assertions := assert.New(t)
-	tmplData := &templateData{}
+	cssTemplateData := &cssTemplateData{}
 	flags := &cmdFlags{
 		sizeFlag: "Bx27",
 	}
-	err := parseSizeFlag(tmplData, flags)
+	err := parseSizeFlag(cssTemplateData, flags)
 	assertions.Error(err)
 	assertions.Equal(err.Error(), `strconv.Atoi: parsing "b": invalid syntax`)
 }
 
 func TestParseSizeFlagIfHeightValueIsNotInteger(t *testing.T) {
 	assertions := assert.New(t)
-	tmplData := &templateData{}
+	cssTemplateData := &cssTemplateData{}
 	flags := &cmdFlags{
 		sizeFlag: "10xA",
 	}
-	err := parseSizeFlag(tmplData, flags)
+	err := parseSizeFlag(cssTemplateData, flags)
 	assertions.Error(err)
 	assertions.Equal(err.Error(), `strconv.Atoi: parsing "a": invalid syntax`)
 }
 
 func TestParseSizeFlagIfMalformedSize(t *testing.T) {
 	assertions := assert.New(t)
-	tmplData := &templateData{}
+	cssTemplateData := &cssTemplateData{}
 	flags := &cmdFlags{
 		sizeFlag: "10xx19",
 	}
-	err := parseSizeFlag(tmplData, flags)
+	err := parseSizeFlag(cssTemplateData, flags)
 	assertions.Error(err)
 	assertions.Equal(err.Error(), `malformed size value; only one x is allowed if specifying with and height`)
 }
