@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>{{.ReportTitle}}</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css" crossorigin="anonymous" {{.CssIntegrity}}>
 </head>
 <body>
 <div class="pageHeader">
@@ -28,6 +28,6 @@
     </div>
     <div class="cardContainer testGroupList" id="testGroupList"></div>
 </div>
-<script type="application/javascript" src="index.js" {{.Integrity}}></script>
+<script type="application/javascript" src="index.js" crossorigin="anonymous" {{.JsIntegrity}}></script>
 </body>
 </html>
